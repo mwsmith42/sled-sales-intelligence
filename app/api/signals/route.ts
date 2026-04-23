@@ -3,67 +3,83 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
-    // POST /api/signals - Called by Make.com to write new signals
-    export async function POST(request: NextRequest) {
-      const authHeader = request.headers.get('authorization')
-        if (authHeader !== `Bearer ${process.env.API_SECRET_KEY}`) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-              }
+function authenticate(request: NextRequest): boolean {
+  const auth = request.headers.get('authorization')
+  if (!auth) return false
+  const token = auth.replace('Bearer ', '')
+  return token === process.env.API_SECRET_KEY
+}
 
-                const body = await request.json()
-                  const { signals, raw_data, digest } = body
+export async function POST(request: NextRequest) {
+  if (!authenticate(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-                    const results: any = {}
+  try {
+    const body = await request.json()
+    const {
+      entity_id,
+      signal_strength,
+      summary,
+      source_url,
+      meeting_date,
+      raw_content,
+      keywords_matched,
+    } = body
 
-                      // Insert raw meeting data if provided
-                        if (raw_data) {
-                            const { data, error } = await supabase
-                                  .from('raw_meeting_data')
-                                        .insert(raw_data)
-                                              .select()
-                                                  results.raw_data = error ? { error: error.message } : { inserted: data?.length }
-                                                    }
+    if (!entity_id || !signal_strength || !summary) {
+      return NextResponse.json(
+        { error: 'Missing required fields: entity_id, signal_strength, summary' },
+        { status: 400 }
+      )
+    }
 
-                                                      // Insert signals if provided
-                                                        if (signals && signals.length > 0) {
-                                                            const { data, error } = await supabase
-                                                                  .from('intel_signals')
-                                                                        .insert(signals)
-                                                                              .select()
-                                                                                  results.signals = error ? { error: error.message } : { inserted: data?.length }
-                                                                                    }
+    const { data, error } = await supabase
+      .from('signals')
+      .insert({
+        entity_id,
+        signal_strength,
+        summary,
+        source_url,
+        meeting_date,
+        raw_content,
+        keywords_matched,
+      })
+      .select()
+      .single()
 
-                                                                                      // Insert/update daily digest if provided
-                                                                                        if (digest) {
-                                                                                            const { data, error } = await supabase
-                                                                                                  .from('daily_digests')
-                                                                                                        .upsert(digest, { onConflict: 'digest_date' })
-                                                                                                              .select()
-                                                                                                                  results.digest = error ? { error: error.message } : { upserted: data?.length }
-                                                                                                                    }
-                                                                                                                    
-                                                                                                                      // Log agent run
-                                                                                                                        await supabase.from('agent_logs').insert({
-                                                                                                                            agent_name: 'sled-research-agent',
-                                                                                                                                status: 'success',
-                                                                                                                                    signals_found: signals?.length ?? 0,
-                                                                                                                                        entities_processed: raw_data ? 1 : 0,
-                                                                                                                                          })
-                                                                                                                                          
-                                                                                                                                            return NextResponse.json({ success: true, results })
-                                                                                                                                            }
-                                                                                                                                            
-                                                                                                                                            // GET /api/signals - Returns latest signals for dashboard
-                                                                                                                                            export async function GET() {
-                                                                                                                                              const { data, error } = await supabase
-                                                                                                                                                  .from('intel_signals')
-                                                                                                                                                      .select('*, target_entities(entity_name, entity_type)')
-                                                                                                                                                          .order('created_at', { ascending: false })
-                                                                                                                                                              .limit(20)
-                                                                                                                                                              
-                                                                                                                                                                if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-                                                                                                                                                                  return NextResponse.json({ signals: data })
-                                                                                                                                                                  }
+    if (error) throw error
+
+    return NextResponse.json({ success: true, signal: data }, { status: 201 })
+  } catch (error) {
+    console.error('Error inserting signal:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function GET(request: NextRequest) {
+  if (!authenticate(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const { searchParams } = new URL(request.url)
+    const limit = parseInt(searchParams.get('limit') || '50')
+
+    const { data, error } = await supabase
+      .from('signals')
+      .select('*, entities(name, entity_type)')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (error) throw error
+
+    return NextResponse.json({ signals: data })
+  } catch (error) {
+    console.error('Error fetching signals:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
