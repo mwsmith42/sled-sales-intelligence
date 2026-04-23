@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --foreground-rgb: 15, 23, 42;
+    --background-start-rgb: 248, 250, 252;
+}
+
+body {
+    color: rgb(var(--foreground-rgb));
+    background: rgb(var(--background-start-rgb));
+}
+
+.signal-hot { @apply bg-red-50 border-red-200 text-red-800; }
+.signal-warm { @apply bg-yellow-50 border-yellow-200 text-yellow-800; }
+.signal-watch { @apply bg-blue-50 border-blue-200 text-blue-800; }
