@@ -1,60 +1,92 @@
-interface Digest {
-    id: string
-        digest_date: string
-        hot_count: number
-        warm_count: number
-        watch_count: number
-        total_entities_scanned: number
-        digest_summary: string
-        created_at: string
-      }
+interface Signal {
+  id: string
+  signal_strength: string
+  summary: string
+  source_url: string
+  meeting_date: string
+  entities?: { name: string; entity_type: string }
+}
 
-export default function DailyDigest({ digest }: { digest: Digest | null }) {
+export default function DailyDigest({ signals }: { signals: Signal[] }) {
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+
+  const hot = signals.filter((s) => s.signal_strength === 'hot')
+  const warm = signals.filter((s) => s.signal_strength === 'warm')
+
   return (
-        <div className="bg-white rounded-xl border border-gray-200">
-          <div className="p-5 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900">Daily Digest</h2>
-    {digest && (
-              <p className="text-xs text-gray-500 mt-1">
-    {new Date(digest.digest_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
-            )}
+    <div className="bg-white rounded-xl border border-gray-200 h-fit">
+      <div className="px-6 py-4 border-b border-gray-100">
+        <h3 className="font-semibold text-gray-900">Daily Digest</h3>
+        <p className="text-xs text-gray-400 mt-0.5">{today}</p>
       </div>
-          <div className="p-5">
-    {!digest ? (
-              <div className="text-center py-8">
-                <div className="text-gray-300 text-5xl mb-3">newspaper</div>
-                <p className="text-gray-400 text-sm">No digest yet.</p>
-            <p className="text-gray-400 text-xs mt-1">The agent will generate one after its first run.</p>
+      <div className="px-6 py-4 space-y-4">
+        {signals.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">
+            <p className="text-3xl mb-2">🌅</p>
+            <p className="text-sm">Your morning briefing will appear here after the agent runs.</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-red-50 rounded-lg p-3">
-                <div className="text-2xl font-bold text-red-600">{digest.hot_count}</div>
-                    <div className="text-xs text-red-600 mt-1">Hot</div>
-                  </div>
-                  <div className="bg-yellow-50 rounded-lg p-3">
-                    <div className="text-2xl font-bold text-yellow-600">{digest.warm_count}</div>
-                    <div className="text-xs text-yellow-600 mt-1">Warm</div>
-                  </div>
-                  <div className="bg-blue-50 rounded-lg p-3">
-                    <div className="text-2xl font-bold text-blue-600">{digest.watch_count}</div>
-                    <div className="text-xs text-blue-600 mt-1">Watch</div>
-                  </div>
-                </div>
-                <div className="text-xs text-gray-500 text-center">
-    {digest.total_entities_scanned} entities scanned
-            </div>
-{digest.digest_summary && (
-              <div className="border-t border-gray-100 pt-4">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Summary</h3>
-                <p className="text-sm text-gray-600 leading-relaxed">{digest.digest_summary}</p>
-                  </div>
+          <>
+            <div className="bg-blue-50 rounded-lg p-3">
+              <p className="text-sm font-medium text-blue-900 mb-1">Summary</p>
+              <p className="text-sm text-blue-700">
+                {signals.length} signal{signals.length !== 1 ? 's' : ''} detected today.{' '}
+                {hot.length > 0 && (
+                  <span className="font-semibold">{hot.length} hot opportunity{hot.length !== 1 ? 's' : ''} need attention.</span>
                 )}
+              </p>
+            </div>
+            {hot.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-red-600 uppercase tracking-wide mb-2">
+                  🔥 Immediate Action
+                </p>
+                <div className="space-y-2">
+                  {hot.slice(0, 3).map((s) => (
+                    <div key={s.id} className="text-sm">
+                      <p className="font-medium text-gray-800 text-xs">{s.entities?.name}</p>
+                      <p className="text-gray-600 text-xs leading-relaxed line-clamp-2">{s.summary}</p>
+                      {s.source_url && (
+                        <a
+                          href={s.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          View source →
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
+            {warm.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-2">
+                  📡 Worth Exploring
+                </p>
+                <div className="space-y-2">
+                  {warm.slice(0, 3).map((s) => (
+                    <div key={s.id} className="text-sm">
+                      <p className="font-medium text-gray-800 text-xs">{s.entities?.name}</p>
+                      <p className="text-gray-600 text-xs leading-relaxed line-clamp-2">{s.summary}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
-        </div>
-      )
-    }
+      <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 rounded-b-xl">
+        <p className="text-xs text-gray-400 text-center">Next refresh: 6:00 AM tomorrow</p>
+      </div>
+    </div>
+  )
+}
