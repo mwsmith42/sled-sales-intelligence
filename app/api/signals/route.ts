@@ -20,19 +20,36 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const {
+    let {
       entity_id,
+      entity_name,
       signal_strength,
       summary,
+      ai_summary,
       source_url,
       meeting_date,
       raw_content,
       keywords_matched,
     } = body
 
-    if (!entity_id || !signal_strength || !summary) {
+    // Support flexible field names from Make.com
+    summary = summary || ai_summary || ''
+    signal_strength = signal_strength || 'watch'
+
+    // If no entity_id, look up by entity_name
+    if (!entity_id && entity_name) {
+      const { data: entityData } = await supabase
+        .from('entities')
+        .select('id')
+        .ilike('name', `%${entity_name}%`)
+        .limit(1)
+        .single()
+      if (entityData) entity_id = entityData.id
+    }
+
+    if (!entity_id) {
       return NextResponse.json(
-        { error: 'Missing required fields: entity_id, signal_strength, summary' },
+        { error: 'Could not resolve entity_id. Provide entity_id or valid entity_name' },
         { status: 400 }
       )
     }
